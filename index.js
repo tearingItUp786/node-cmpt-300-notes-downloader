@@ -1,88 +1,96 @@
 const cheerio = require('cheerio');
-const request = require('request');
 const fs = require('fs');
+const request = require('request');
+const path = require('path');
 
-// var url = "http://www.cs.sfu.ca/~ashriram/Courses/2017/CS300/slides/Week2/Examples/";
-// var dir = "/home/bear/Desktop/cmpt-300/Week 2";
 var baseURL = "http://www.cs.sfu.ca/~ashriram/Courses/2017/CS300/";
-var url = "http://www.cs.sfu.ca/~ashriram/Courses/2017/CS300/includes/schedule.html";
-var baseDir = process.argv[2];
-if (!fs.existsSync(baseDir)) {
-    fs.mkdirSync(baseDir);
-}
-//var baseDir = "/home/bear/Desktop/cmpt-300";
-//baseDir = "/home/bear/Desktop/grab_files";
-function resolveLinks(links, callback) {
-    // console.log(link);
-    var dir;
-    links.forEach(function resolveSingleLink(link, index) {
-        var folderName = link.match(/.Week/i);
-        if (folderName) {
-            folderName = link.slice(folderName.index + 1, link.length - 1);
-        }
+var baseDirectory = process.argv[2] || __dirname;
+var scheduleURL = "http://www.cs.sfu.ca/~ashriram/Courses/2017/CS300/includes/schedule.html";
 
-        dir = baseDir + folderName;
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir);
-        }
+scanForLinks(scheduleURL, getDocuments);
 
-        callback(link, dir);
+function scanForLinks(url, callback) {
+    request(url, (err, response, body) => {
+        if (err) return consle.log(err);
+
+        $ = cheerio.load(body);
+
+        $("table table table a").each(function pushLink(index, element) {
+            var $linkTag = $(element);
+
+            if ($linkTag.attr('href').match(/..slides\//i)) {
+
+                let cleanedAttr = $linkTag.attr('href').slice(3); //get rid of the ../
+                let changedURL = baseURL + cleanedAttr; //new location to change to
+                let directoryName = cleanedAttr.slice(7, -1); //remove the ../slides/
+
+                var directoryObject = {
+                    "link": changedURL,
+                    "directory": directoryName,
+                    "parentDirectory": baseDirectory
+                };
+
+                callback(directoryObject);
+            }
+        });
+
     });
 }
 
-function requestPDF(link, dir) {
-    request(link, function openLink(err, response, body) {
-        //console.log(link);
-        process.chdir(dir);
-        //console.log(process.cwd());
-        if (err) return console.log(error);
 
+
+function getDocuments(directoryObject) {
+    var {
+        link,
+        directory,
+        parentDirectory
+    } = directoryObject || {};
+
+    var fullPath = path.join(parentDirectory, directory);
+    createDirectory(fullPath);
+
+    request(link, (err, response, body) => {
+        if (err) return console.log(error);
         $ = cheerio.load(body);
 
         $anchorTags = $('a');
 
         $anchorTags.each(function downloadPDFS(index, element) {
-            if ($(element).attr('href').match(/^[a-zA-Z0-9_-]+\.*[a-zA-Z0-9_-]+$/i)) {
-                //console.log(link + $(element).attr('href'));
-                var file = fs.createWriteStream($(element).attr('href'));
-                request(link + $(element).attr('href'), function(err, response, body) {
-                    response.pipe(file);
-                });
-                // //request('http://unec.edu.az/application/uploads/2014/12/pdf-sample.pdf').pipe(fs.createWriteStream('test.pdf'));
+            if ($(element).attr('href').match(/^[a-zA-Z0-9._-]*\.*[a-zA-Z0-9_-]*$/i)) {
+                downloadDocs(link + $(element).attr('href'), path.join(fullPath, $(element).attr('href')));
             }
             if ($(element).attr('href').match(/^[/a-zA-Z]+[/]$/i)) {
-                //console.log(link + $(element).attr('href'));
                 var directoryName = $(element).attr('href').slice(0, $(element).attr('href').length - 2);
                 var subLink = link + $(element).attr('href');
-                if (!fs.existsSync(directoryName)) {
-                    fs.mkdirSync(directoryName);
-                }
-                directoryName = dir + '/' + directoryName;
-                //console.log(directoryName);
-                requestPDF(subLink, directoryName);
+                return getDocuments({
+                    "link": subLink,
+                    "directory": directoryName,
+                    "parentDirectory": fullPath
+                });
             }
         });
     });
 }
 
-function getLinks(callback, secondcallback) {
-    var linksToFollow = [];
-    request(url, function openBaseURL(err, response, body) {
-        if (err) return console.log(error);
+function downloadDocs(url, location, directory) {
+    const file = fs.createWriteStream(location);
 
-        $ = cheerio.load(body);
-
-        $("table table table a").each(function pushLinks(index, element) {
-            var $linkTag = $(element);
-
-            if ($linkTag.attr('href').match(/..slides\//i)) {
-                let cleanedAttr = $linkTag.attr('href').slice(3);
-                let changeURL = baseURL + cleanedAttr;
-                linksToFollow.push(changeURL);
-            }
+    request(url)
+        .pipe(file)
+        .on('error', function(error) {
+            console.error(error);
         });
-        callback(linksToFollow, secondcallback);
+    file.on('open', function() {
+        console.log(`Opening file ${location} and the working directory is ${location}`);
+    });
+    file.on('close', function() {
+        console.log(`Closing ${location} and the working directory is ${location}`);
     });
 }
 
-getLinks(resolveLinks, requestPDF);
+function createDirectory(dirName, callback) {
+    if (!fs.existsSync(dirName)) {
+        console.log(`Created directory ${dirName}`);
+        return fs.mkdirSync(dirName);
+    }
+}
