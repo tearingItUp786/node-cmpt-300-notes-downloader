@@ -3,6 +3,10 @@
     "version": "1.0.0",
     "description": "Grab files from url",
     "main": "index.js",
+    "dependencies": {
+      "cheerio": "latest",
+      "request": "latest"
+    },
     "scripts": {
         "test": "echo \"Test Command\"",
         "grab": "node index.js"
