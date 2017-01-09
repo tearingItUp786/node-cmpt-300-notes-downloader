@@ -1,0 +1,15 @@
+{
+    "name": "grab_files",
+    "version": "1.0.0",
+    "description": "Grab files from url",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Test Command\"",
+        "grab": "node index.js"
+    },
+    "keywords": [
+        "test"
+    ],
+    "author": "Taran",
+    "license": "ISC"
+}
