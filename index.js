@@ -18,7 +18,7 @@ function resolveLinks(links, callback) {
     links.forEach(function resolveSingleLink(link, index) {
         var folderName = link.match(/.Week/i);
         if (folderName) {
-            folderName = link.slice(folderName.index, link.length - 1);
+            folderName = link.slice(folderName.index + 1, link.length - 1);
         }
 
         dir = baseDir + folderName;
